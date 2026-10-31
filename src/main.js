@@ -16,8 +16,11 @@ import { Plugin, VirtualEl, Notice } from "@impro.social/impro-plugin";
 //
 // Consequences of that design, all deliberate:
 // - Posts with no text get no button (the host renders no rich text for them).
-// - The host caches transform output per (post uri, surface), so a post first
-//   rendered outside a feed and later shown in one keeps its no-button result.
+// - The host caches transform output per (post uri, surface), not per feed.
+//   A post first rendered outside a feed keeps its no-button result, and a post
+//   already rendered in one feed keeps that feed's button everywhere, including
+//   in a feed that doesn't accept feedback. The first feed a post is seen in
+//   wins, so a click always goes to the feed the button was built for.
 // - Like the host's own menu item, the button only appears on feeds whose
 //   generator record sets acceptsInteractions (Discover, most custom feeds);
 //   never on Following or lists.
@@ -36,8 +39,12 @@ class ShowLessButtonPlugin extends Plugin {
     this.addFeedFilter(async (feedURI, feedItems) => {
       if (await this.acceptsFeedback(feedURI)) {
         for (const item of feedItems || []) {
-          const uri = item?.post?.uri;
-          if (uri) this.postFeed.set(uri, feedURI);
+          // A reply is shown with its parent (and sometimes the thread root)
+          // above it. Impro's own menu offers "Show less" on those too.
+          for (const post of [item?.post, item?.reply?.parent, item?.reply?.root]) {
+            const uri = post?.uri;
+            if (uri && !this.postFeed.has(uri)) this.postFeed.set(uri, feedURI);
+          }
         }
       }
       return {}; // never hide anything

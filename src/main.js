@@ -81,14 +81,37 @@ class ShowLessButtonPlugin extends Plugin {
   }
 
   buildButton(postUri, feedUri) {
+    // The node lives in the post's text (the only place a plugin can add to a
+    // feed post), but styles.css lifts it into the action bar, just left of
+    // Bookmark. It reuses Impro's own action-button classes and the exact icon
+    // Impro's "Show less like this" menu item uses, so it looks and behaves
+    // like the bar's other buttons.
     const wrap = new VirtualEl("div");
     wrap.addClass("show-less-button-row");
+    const sent = this.sent.has(postUri);
     const button = wrap.createEl("button", {
-      cls: "show-less-button",
-      text: this.sent.has(postUri) ? "Sent" : "Show less like this",
-      attr: { type: "button", title: "Show less like this" },
+      cls: "post-action-button show-less-button",
+      attr: {
+        type: "button",
+        title: sent ? "Sent" : "Show less like this",
+        "aria-label": "Show less like this",
+      },
     });
-    if (this.sent.has(postUri)) {
+    const icon = button.createEl("div", { cls: "post-action-icon" });
+    const svg = icon.createEl("svg", {
+      attr: { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none" },
+    });
+    const stroke = {
+      stroke: "currentColor",
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      "stroke-width": "2",
+    };
+    svg.createEl("circle", { attr: { cx: "12", cy: "12", r: "9", ...stroke } });
+    svg.createEl("circle", { attr: { cx: "9", cy: "10", r: "1.25", fill: "currentColor" } });
+    svg.createEl("circle", { attr: { cx: "15", cy: "10", r: "1.25", fill: "currentColor" } });
+    svg.createEl("path", { attr: { d: "M9 16q3-3 6 0", ...stroke } });
+    if (sent) {
       button.setAttr("disabled", "");
       return wrap;
     }
@@ -104,7 +127,7 @@ class ShowLessButtonPlugin extends Plugin {
       } catch (error) {
         this.sent.delete(postUri);
         console.error("[show-less-button] showLessLikeThis failed", error);
-        new Notice("Couldn't send “Show less like this”. Try again.");
+        new Notice("Couldn't send \u201cShow less like this\u201d. Try again.");
       }
     });
     return wrap;

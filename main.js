@@ -534,6 +534,33 @@ var Notice = class {
     hostCall("hideToast", { toastId: this.#toastId });
   }
 };
+var StyleSnippet = class {
+  #snippetId = uuid.create();
+  #removed = false;
+  /**
+   * @param {string} cssText
+   */
+  constructor(cssText) {
+    this.ready = new Promise((resolve, reject) => {
+      queueMicrotask(() => {
+        if (this.#removed) return resolve();
+        hostCall("applyStyleSnippet", {
+          snippetId: this.#snippetId,
+          cssText
+        }).then(() => resolve(), reject);
+      });
+    });
+  }
+  /**
+   * Removes the snippet from the document. No-op if already removed.
+   * @returns {void}
+   */
+  remove() {
+    if (this.#removed) return;
+    this.#removed = true;
+    hostCall("removeStyleSnippet", { snippetId: this.#snippetId });
+  }
+};
 var registered = false;
 var Plugin = class {
   /** @internal */
@@ -1258,32 +1285,32 @@ self.onmessage = async (event) => {
 };
 
 // src/main.js
-var GENERATOR_URI = /^at:\/\/([^/]+)\/app\.bsky\.feed\.generator\/([^/]+)$/;
+var GENERATOR_URI = /^at:\/\/([^/"\\]+)\/app\.bsky\.feed\.generator\/([^/"\\]+)$/;
 var ShowLessButtonPlugin = class extends Plugin {
   onload() {
-    this.postFeed = /* @__PURE__ */ new Map();
     this.feedAccepts = /* @__PURE__ */ new Map();
+    this.acceptingFeeds = [];
     this.sent = /* @__PURE__ */ new Set();
-    this.addFeedFilter(async (feedURI, feedItems) => {
-      if (await this.acceptsFeedback(feedURI)) {
-        for (const item of feedItems || []) {
-          for (const post2 of [item?.post, item?.reply?.parent, item?.reply?.root]) {
-            const uri = post2?.uri;
-            if (uri && !this.postFeed.has(uri)) this.postFeed.set(uri, feedURI);
-          }
-        }
-      }
+    this.addFeedFilter(async (feedURI) => {
+      if (await this.acceptsFeedback(feedURI)) this.addAcceptingFeed(feedURI);
       return {};
     });
     this.registerRichTextTransform((tokens, context) => {
-      if (context?.surface !== "smallPost") return tokens;
-      const feedUri = this.postFeed.get(context.uri);
-      if (!feedUri) return tokens;
-      return [
-        ...tokens,
-        { type: "block", node: this.buildButton(context.uri, feedUri) }
-      ];
+      if (context?.surface !== "smallPost" || !context.uri) return tokens;
+      if (this.acceptingFeeds.length === 0) return tokens;
+      return [...tokens, { type: "block", node: this.buildButtons(context.uri) }];
     });
+  }
+  addAcceptingFeed(feedUri) {
+    if (this.acceptingFeeds.includes(feedUri)) return;
+    this.acceptingFeeds.push(feedUri);
+    const item = `.feed-item[data-feed-generator-uri="${feedUri}"]`;
+    const button = `.show-less-button[data-feed="${feedUri}"]`;
+    new StyleSnippet(
+      `${item} .small-post ${button} { display: flex; }
+${item} .small-post:has(${button}) .post-actions-secondary { padding-left: 34px; }
+`
+    );
   }
   acceptsFeedback(feedURI) {
     const match = GENERATOR_URI.exec(String(feedURI || ""));
@@ -1299,16 +1326,24 @@ var ShowLessButtonPlugin = class extends Plugin {
     }
     return pending;
   }
-  buildButton(postUri, feedUri) {
+  buildButtons(postUri) {
     const wrap = new VirtualEl("div");
     wrap.addClass("show-less-button-row");
-    const sent = this.sent.has(postUri);
+    for (const feedUri of this.acceptingFeeds) this.buildButton(wrap, postUri, feedUri);
+    return wrap;
+  }
+  // Reuses Impro's own action-button classes and the exact icon Impro's
+  // "Show less like this" menu item uses, so it matches the bar's buttons.
+  buildButton(wrap, postUri, feedUri) {
+    const key = `${feedUri}|${postUri}`;
+    const sent = this.sent.has(key);
     const button = wrap.createEl("button", {
       cls: "post-action-button show-less-button",
       attr: {
         type: "button",
         title: sent ? "Sent" : "Show less like this",
-        "aria-label": "Show less like this"
+        "aria-label": "Show less like this",
+        "data-feed": feedUri
       }
     });
     const icon = button.createEl("div", { cls: "post-action-icon" });
@@ -1327,20 +1362,19 @@ var ShowLessButtonPlugin = class extends Plugin {
     svg.createEl("path", { attr: { d: "M9 16q3-3 6 0", ...stroke } });
     if (sent) {
       button.setAttr("disabled", "");
-      return wrap;
+      return;
     }
     button.onClick(async () => {
-      if (this.sent.has(postUri)) return;
-      this.sent.add(postUri);
+      if (this.sent.has(key)) return;
+      this.sent.add(key);
       try {
         await this.app.showLessLikeThis(postUri, feedUri);
       } catch (error) {
-        this.sent.delete(postUri);
+        this.sent.delete(key);
         console.error("[show-less-button] showLessLikeThis failed", error);
         new Notice("Couldn't send \u201CShow less like this\u201D. Try again.");
       }
     });
-    return wrap;
   }
 };
 ShowLessButtonPlugin.register();

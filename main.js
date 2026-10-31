@@ -1287,12 +1287,23 @@ self.onmessage = async (event) => {
 // src/main.js
 var GENERATOR_URI = /^at:\/\/([^/"\\]+)\/app\.bsky\.feed\.generator\/([^/"\\]+)$/;
 var ShowLessButtonPlugin = class extends Plugin {
-  onload() {
+  async onload() {
     this.feedAccepts = /* @__PURE__ */ new Map();
     this.acceptingFeeds = [];
+    this.feedStyles = /* @__PURE__ */ new Map();
     this.sent = /* @__PURE__ */ new Set();
+    try {
+      const saved = await this.loadData() || {};
+      for (const feedUri of Array.isArray(saved.acceptingFeeds) ? saved.acceptingFeeds : []) {
+        this.addAcceptingFeed(feedUri, { persist: false });
+      }
+    } catch (error) {
+      console.error("[show-less-button] could not load saved feeds", error);
+    }
     this.addFeedFilter(async (feedURI) => {
-      if (await this.acceptsFeedback(feedURI)) this.addAcceptingFeed(feedURI);
+      const accepts = await this.acceptsFeedback(feedURI);
+      if (accepts) this.addAcceptingFeed(feedURI);
+      else if (accepts === false && this.feedAccepts.has(feedURI)) this.removeAcceptingFeed(feedURI);
       return {};
     });
     this.registerRichTextTransform((tokens, context) => {
@@ -1301,15 +1312,33 @@ var ShowLessButtonPlugin = class extends Plugin {
       return [...tokens, { type: "block", node: this.buildButtons(context.uri) }];
     });
   }
-  addAcceptingFeed(feedUri) {
+  addAcceptingFeed(feedUri, { persist = true } = {}) {
+    if (!GENERATOR_URI.test(String(feedUri || ""))) return;
     if (this.acceptingFeeds.includes(feedUri)) return;
     this.acceptingFeeds.push(feedUri);
     const item = `.feed-item[data-feed-generator-uri="${feedUri}"]`;
     const button = `.show-less-button[data-feed="${feedUri}"]`;
-    new StyleSnippet(
-      `${item} .small-post ${button} { display: flex; }
+    this.feedStyles.set(
+      feedUri,
+      new StyleSnippet(
+        `${item} .small-post ${button} { display: flex; }
 ${item} .small-post:has(${button}) .post-actions-secondary { padding-left: 34px; }
 `
+      )
+    );
+    if (persist) this.persistFeeds();
+  }
+  // A saved feed that has since stopped accepting feedback: hide its buttons.
+  removeAcceptingFeed(feedUri) {
+    if (!this.acceptingFeeds.includes(feedUri)) return;
+    this.acceptingFeeds = this.acceptingFeeds.filter((f) => f !== feedUri);
+    this.feedStyles.get(feedUri)?.remove();
+    this.feedStyles.delete(feedUri);
+    this.persistFeeds();
+  }
+  persistFeeds() {
+    this.saveData({ acceptingFeeds: this.acceptingFeeds }).catch(
+      (error) => console.error("[show-less-button] could not save feeds", error)
     );
   }
   acceptsFeedback(feedURI) {

@@ -1,7 +1,7 @@
 {
   "id": "show-less-button",
   "name": "Show Less Button",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "author": "Jython1415",
   "description": "Adds a one-click \"Show less like this\" button to posts in custom feeds.",
   "permissions": {

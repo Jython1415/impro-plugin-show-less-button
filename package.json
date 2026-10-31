@@ -1,6 +1,6 @@
 {
   "name": "impro-plugin-show-less-button",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "type": "module",
   "scripts": {
     "build": "esbuild src/main.js --bundle --format=cjs --outfile=main.js",

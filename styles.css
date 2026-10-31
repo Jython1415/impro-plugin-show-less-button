@@ -1,20 +1,28 @@
-.show-less-button-row {
-  margin-top: 6px;
+/*
+ * Lift the button out of the post text and into the action bar, just left of
+ * Bookmark. Plugin stylesheets apply to the whole page, so this can lay out
+ * against Impro's own markup. The numbers come from Impro's feed-post layout
+ * (measured 2026-10-31):
+ *   - The positioning box is .post-content-with-space. The action bar is the
+ *     last thing in it, and its buttons sit 4px above its bottom edge.
+ *   - The right-hand group (Bookmark, Share, More) is three 30px buttons with
+ *     4px gaps: 98px. The button goes one 4px gap to the left of it.
+ * The group gets a 34px left padding (30px button + 4px gap) so the left-hand
+ * actions can never run under the button on a narrow screen.
+ */
+.small-post .show-less-button-row {
+  height: 0;
+  margin: 0;
 }
-.show-less-button {
-  padding: 2px 10px;
-  border: 1px solid var(--border-color, rgba(127, 127, 127, 0.35));
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-color-muted, inherit);
-  font: inherit;
-  font-size: 12px;
-  cursor: pointer;
+.small-post .show-less-button.post-action-button {
+  position: absolute;
+  right: 102px;
+  bottom: 4px;
+  z-index: 1;
 }
-.show-less-button:hover:not([disabled]) {
-  background: var(--background-color-secondary, rgba(127, 127, 127, 0.08));
+.small-post .show-less-button.post-action-button[disabled] {
+  opacity: 0.5;
 }
-.show-less-button[disabled] {
-  cursor: default;
-  opacity: 0.6;
+.small-post:has(.show-less-button) .post-actions-secondary {
+  padding-left: 34px;
 }

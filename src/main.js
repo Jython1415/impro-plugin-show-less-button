@@ -20,8 +20,13 @@ import { Plugin, VirtualEl, Notice, StyleSnippet } from "@impro.social/impro-plu
 // not per feed, and doesn't tell the transform which feed it is rendering for.
 // Rendering every feed's button and letting CSS pick means the button on
 // screen always sends to the feed on screen, whichever feed the post was
-// first drawn in. A button for a feed only exists if that feed had loaded
-// before the post was first drawn.
+// first drawn in.
+//
+// A post only carries buttons for feeds known when it was first drawn, so the
+// list of feeds that accept feedback is saved with the plugin's synced data
+// and loaded in onload(). Impro waits for plugins to finish loading before it
+// renders any feed, so after the first session every known feed's button is
+// present from the first post on.
 //
 // Posts with no text get no button: Impro renders no rich text for them, and
 // the transform is the only per-post hook a plugin has.
@@ -29,16 +34,29 @@ import { Plugin, VirtualEl, Notice, StyleSnippet } from "@impro.social/impro-plu
 const GENERATOR_URI = /^at:\/\/([^/"\\]+)\/app\.bsky\.feed\.generator\/([^/"\\]+)$/;
 
 class ShowLessButtonPlugin extends Plugin {
-  onload() {
+  async onload() {
     /** feed uri -> Promise<boolean> (does the feed accept interactions?) */
     this.feedAccepts = new Map();
     /** feed uris known to accept feedback, in discovery order */
     this.acceptingFeeds = [];
+    /** feed uri -> StyleSnippet that shows that feed's button */
+    this.feedStyles = new Map();
     /** "<feed>|<post>" pairs already sent a requestLess */
     this.sent = new Set();
 
+    try {
+      const saved = (await this.loadData()) || {};
+      for (const feedUri of Array.isArray(saved.acceptingFeeds) ? saved.acceptingFeeds : []) {
+        this.addAcceptingFeed(feedUri, { persist: false });
+      }
+    } catch (error) {
+      console.error("[show-less-button] could not load saved feeds", error);
+    }
+
     this.addFeedFilter(async (feedURI) => {
-      if (await this.acceptsFeedback(feedURI)) this.addAcceptingFeed(feedURI);
+      const accepts = await this.acceptsFeedback(feedURI);
+      if (accepts) this.addAcceptingFeed(feedURI);
+      else if (accepts === false && this.feedAccepts.has(feedURI)) this.removeAcceptingFeed(feedURI);
       return {}; // never hide anything
     });
 
@@ -49,16 +67,36 @@ class ShowLessButtonPlugin extends Plugin {
     });
   }
 
-  addAcceptingFeed(feedUri) {
+  addAcceptingFeed(feedUri, { persist = true } = {}) {
+    if (!GENERATOR_URI.test(String(feedUri || ""))) return;
     if (this.acceptingFeeds.includes(feedUri)) return;
     this.acceptingFeeds.push(feedUri);
     // Show this feed's button only inside this feed's items. The URI was
     // validated by GENERATOR_URI, so it holds no quote or backslash.
     const item = `.feed-item[data-feed-generator-uri="${feedUri}"]`;
     const button = `.show-less-button[data-feed="${feedUri}"]`;
-    new StyleSnippet(
-      `${item} .small-post ${button} { display: flex; }\n` +
-        `${item} .small-post:has(${button}) .post-actions-secondary { padding-left: 34px; }\n`,
+    this.feedStyles.set(
+      feedUri,
+      new StyleSnippet(
+        `${item} .small-post ${button} { display: flex; }\n` +
+          `${item} .small-post:has(${button}) .post-actions-secondary { padding-left: 34px; }\n`,
+      ),
+    );
+    if (persist) this.persistFeeds();
+  }
+
+  // A saved feed that has since stopped accepting feedback: hide its buttons.
+  removeAcceptingFeed(feedUri) {
+    if (!this.acceptingFeeds.includes(feedUri)) return;
+    this.acceptingFeeds = this.acceptingFeeds.filter((f) => f !== feedUri);
+    this.feedStyles.get(feedUri)?.remove();
+    this.feedStyles.delete(feedUri);
+    this.persistFeeds();
+  }
+
+  persistFeeds() {
+    this.saveData({ acceptingFeeds: this.acceptingFeeds }).catch((error) =>
+      console.error("[show-less-button] could not save feeds", error),
     );
   }
 

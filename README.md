@@ -44,11 +44,13 @@ Because of that:
 - The placement uses two numbers measured from Impro's layout (the bar's 4px
   inset and the 98px Bookmark/Share/More group). If Impro changes that layout,
   the button will sit in the wrong spot until `styles.css` is updated.
-- Impro caches the button per post, not per feed. A post rendered in one feed
-  keeps that result when it shows up in another: a post first seen in Following
-  has no button in Discover, and a post first seen in Discover keeps its button
-  in Following (and a click there sends the signal to Discover, not to the feed
-  on screen). Reloading the page clears it.
+- A feed's button only exists on posts first drawn after that feed loaded.
+  The plugin renders one hidden button per feed that accepts feedback, and a
+  per-feed CSS rule shows the one matching the feed the post is displayed in
+  (Impro tags each feed item with its feed). So the button on screen always
+  sends to the feed on screen. But Impro caches each post's text per post, so
+  a post first drawn before, say, Popular With Friends had loaded has no
+  Popular With Friends button until the page is reloaded.
 - It only covers feeds whose generator says it accepts feedback, so feeds that
   never set `acceptsInteractions` get no button, exactly as Impro's menu.
 

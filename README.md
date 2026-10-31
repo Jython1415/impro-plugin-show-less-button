@@ -1,8 +1,10 @@
 # Show Less Button — an Impro plugin
 
-Adds a one-click **"Show less like this"** button to posts in custom feeds in the
-[Impro](https://impro.social) Bluesky client, so you don't have to open the
-**…** menu to reach it. Clicking it does exactly what the menu item does: it
+Adds a one-click **"Show less like this"** button to the action bar of posts in
+custom feeds in the [Impro](https://impro.social) Bluesky client, so you don't
+have to open the **…** menu to reach it. It sits just left of Bookmark, as the
+same sad-face icon Impro's menu item uses, and it is styled with Impro's own
+action-button classes. Clicking it does exactly what the menu item does: it
 sends the feed a `requestLess` signal and Impro collapses the post behind its
 feedback message.
 
@@ -31,13 +33,17 @@ hooks that do exist:
    records which feed each post came from, and looks up (once per feed) whether
    the feed generator sets `acceptsInteractions`.
 2. A **rich-text transform** on feed posts (`smallPost`). For a post known to
-   come from such a feed, it appends the button below the post text.
+   come from such a feed, it adds the button to the post text. Plugin
+   stylesheets apply to the whole page, so `styles.css` then lifts it out of the
+   text and pins it into the action bar.
 
 Because of that:
 
 - Posts with **no text** (image- or link-only) get no button; Impro renders no
   rich text for them.
-- The button sits **below the post text**, not in the action bar.
+- The placement uses two numbers measured from Impro's layout (the bar's 4px
+  inset and the 98px Bookmark/Share/More group). If Impro changes that layout,
+  the button will sit in the wrong spot until `styles.css` is updated.
 - Impro caches the button per post, not per feed. A post rendered in one feed
   keeps that result when it shows up in another: a post first seen in Following
   has no button in Discover, and a post first seen in Discover keeps its button

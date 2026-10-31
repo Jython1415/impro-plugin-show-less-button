@@ -38,10 +38,15 @@ Because of that:
 - Posts with **no text** (image- or link-only) get no button; Impro renders no
   rich text for them.
 - The button sits **below the post text**, not in the action bar.
-- Impro caches transform output per post, so a post first seen outside a feed
-  and later shown in one won't get a button until the next reload.
+- Impro caches the button per post, not per feed. A post rendered in one feed
+  keeps that result when it shows up in another: a post first seen in Following
+  has no button in Discover, and a post first seen in Discover keeps its button
+  in Following (and a click there sends the signal to Discover, not to the feed
+  on screen). Reloading the page clears it.
+- It only covers feeds whose generator says it accepts feedback, so feeds that
+  never set `acceptsInteractions` get no button, exactly as Impro's menu.
 
-A host-side slot in the post action bar would remove all three limits.
+A host-side slot in the post action bar would remove the first three.
 
 ## Build
 

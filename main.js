@@ -1267,8 +1267,10 @@ var ShowLessButtonPlugin = class extends Plugin {
     this.addFeedFilter(async (feedURI, feedItems) => {
       if (await this.acceptsFeedback(feedURI)) {
         for (const item of feedItems || []) {
-          const uri = item?.post?.uri;
-          if (uri) this.postFeed.set(uri, feedURI);
+          for (const post2 of [item?.post, item?.reply?.parent, item?.reply?.root]) {
+            const uri = post2?.uri;
+            if (uri && !this.postFeed.has(uri)) this.postFeed.set(uri, feedURI);
+          }
         }
       }
       return {};

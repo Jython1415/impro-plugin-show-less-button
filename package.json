@@ -1,0 +1,16 @@
+{
+  "name": "impro-plugin-show-less-button",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --format=cjs --outfile=main.js",
+    "watch": "esbuild src/main.js --bundle --format=cjs --outfile=main.js --watch"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.10"
+  },
+  "dependencies": {
+    "@impro.social/impro-plugin": "npm:@atpkgs/didplc__bpyevhddfoledxzsxracdlkg__impro-plugin@latest"
+  },
+  "description": "Adds a one-click \"Show less like this\" button to posts in custom feeds."
+}

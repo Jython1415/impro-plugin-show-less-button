@@ -534,33 +534,6 @@ var Notice = class {
     hostCall("hideToast", { toastId: this.#toastId });
   }
 };
-var StyleSnippet = class {
-  #snippetId = uuid.create();
-  #removed = false;
-  /**
-   * @param {string} cssText
-   */
-  constructor(cssText) {
-    this.ready = new Promise((resolve, reject) => {
-      queueMicrotask(() => {
-        if (this.#removed) return resolve();
-        hostCall("applyStyleSnippet", {
-          snippetId: this.#snippetId,
-          cssText
-        }).then(() => resolve(), reject);
-      });
-    });
-  }
-  /**
-   * Removes the snippet from the document. No-op if already removed.
-   * @returns {void}
-   */
-  remove() {
-    if (this.#removed) return;
-    this.#removed = true;
-    hostCall("removeStyleSnippet", { snippetId: this.#snippetId });
-  }
-};
 var registered = false;
 var Plugin = class {
   /** @internal */
@@ -1285,113 +1258,55 @@ self.onmessage = async (event) => {
 };
 
 // src/main.js
-var GENERATOR_URI = /^at:\/\/([^/"\\]+)\/app\.bsky\.feed\.generator\/([^/"\\]+)$/;
+var SLOT = "post-action-bar:secondary-start";
 var ShowLessButtonPlugin = class extends Plugin {
-  async onload() {
+  onload() {
     this.feedAccepts = /* @__PURE__ */ new Map();
-    this.acceptingFeeds = [];
-    this.feedStyles = /* @__PURE__ */ new Map();
     this.sent = /* @__PURE__ */ new Set();
-    try {
-      const saved = await this.loadData() || {};
-      for (const feedUri of Array.isArray(saved.acceptingFeeds) ? saved.acceptingFeeds : []) {
-        this.addAcceptingFeed(feedUri, { persist: false });
-      }
-    } catch (error) {
-      console.error("[show-less-button] could not load saved feeds", error);
-    }
-    this.addFeedFilter(async (feedURI) => {
-      const accepts = await this.acceptsFeedback(feedURI);
-      if (accepts) this.addAcceptingFeed(feedURI);
-      else if (accepts === false && this.feedAccepts.has(feedURI)) this.removeAcceptingFeed(feedURI);
-      return {};
-    });
-    this.registerRichTextTransform((tokens, context) => {
-      if (context?.surface !== "smallPost" || !context.uri) return tokens;
-      if (this.acceptingFeeds.length === 0) return tokens;
-      return [...tokens, { type: "block", node: this.buildButtons(context.uri) }];
-    });
-  }
-  addAcceptingFeed(feedUri, { persist = true } = {}) {
-    if (!GENERATOR_URI.test(String(feedUri || ""))) return;
-    if (this.acceptingFeeds.includes(feedUri)) return;
-    this.acceptingFeeds.push(feedUri);
-    const item = `.feed-item[data-feed-generator-uri="${feedUri}"]`;
-    const button = `.show-less-button[data-feed="${feedUri}"]`;
-    this.feedStyles.set(
-      feedUri,
-      new StyleSnippet(
-        `${item} .small-post ${button} { display: flex; }
-${item} .small-post:has(${button}) .post-actions-secondary { padding-left: 34px; }
-`
-      )
-    );
-    if (persist) this.persistFeeds();
-  }
-  // A saved feed that has since stopped accepting feedback: hide its buttons.
-  removeAcceptingFeed(feedUri) {
-    if (!this.acceptingFeeds.includes(feedUri)) return;
-    this.acceptingFeeds = this.acceptingFeeds.filter((f) => f !== feedUri);
-    this.feedStyles.get(feedUri)?.remove();
-    this.feedStyles.delete(feedUri);
-    this.persistFeeds();
-  }
-  persistFeeds() {
-    this.saveData({ acceptingFeeds: this.acceptingFeeds }).catch(
-      (error) => console.error("[show-less-button] could not save feeds", error)
+    this.registerSlot(
+      SLOT,
+      async (context) => {
+        const uri = context?.uri;
+        const feedUri = context?.feedUri;
+        if (!uri || !feedUri) return null;
+        if (!await this.acceptsFeedback(feedUri)) return null;
+        return this.buildButton(uri, feedUri);
+      },
+      { cacheKey: ["uri", "feedUri"] }
     );
   }
-  acceptsFeedback(feedURI) {
-    const match = GENERATOR_URI.exec(String(feedURI || ""));
-    if (!match) return Promise.resolve(false);
-    let pending = this.feedAccepts.get(feedURI);
+  // Same rule as Impro's own menu item: only feeds whose generator accepts
+  // interactions get "Show less like this".
+  acceptsFeedback(feedUri) {
+    let pending = this.feedAccepts.get(feedUri);
     if (!pending) {
-      pending = this.app.data.getRecord(match[1], "app.bsky.feed.generator", match[2]).then((record) => record?.value?.acceptsInteractions === true).catch((error) => {
-        this.feedAccepts.delete(feedURI);
+      pending = this.app.data.getFeedGenerator(feedUri).then((view) => view?.acceptsInteractions === true).catch((error) => {
+        this.feedAccepts.delete(feedUri);
         console.error("[show-less-button] feed generator lookup failed", error);
         return false;
       });
-      this.feedAccepts.set(feedURI, pending);
+      this.feedAccepts.set(feedUri, pending);
     }
     return pending;
   }
-  buildButtons(postUri) {
-    const wrap = new VirtualEl("div");
-    wrap.addClass("show-less-button-row");
-    for (const feedUri of this.acceptingFeeds) this.buildButton(wrap, postUri, feedUri);
-    return wrap;
-  }
-  // Reuses Impro's own action-button classes and the exact icon Impro's
-  // "Show less like this" menu item uses, so it matches the bar's buttons.
-  buildButton(wrap, postUri, feedUri) {
+  buildButton(postUri, feedUri) {
     const key = `${feedUri}|${postUri}`;
     const sent = this.sent.has(key);
-    const button = wrap.createEl("button", {
+    const action = new VirtualEl("div");
+    action.addClass("post-action");
+    action.addClass("show-less-action");
+    const button = action.createEl("button", {
       cls: "post-action-button show-less-button",
       attr: {
         type: "button",
         title: sent ? "Sent" : "Show less like this",
-        "aria-label": "Show less like this",
-        "data-feed": feedUri
+        "aria-label": "Show less like this"
       }
     });
-    const icon = button.createEl("div", { cls: "post-action-icon" });
-    const svg = icon.createEl("svg", {
-      attr: { viewBox: "0 0 24 24", width: "18", height: "18", fill: "none" }
-    });
-    const stroke = {
-      stroke: "currentColor",
-      "stroke-linecap": "round",
-      "stroke-linejoin": "round",
-      "stroke-width": "2"
-    };
-    svg.createEl("circle", { attr: { cx: "12", cy: "12", r: "9", ...stroke } });
-    svg.createEl("circle", { attr: { cx: "9", cy: "10", r: "1.25", fill: "currentColor" } });
-    svg.createEl("circle", { attr: { cx: "15", cy: "10", r: "1.25", fill: "currentColor" } });
-    svg.createEl("path", { attr: { d: "M9 16q3-3 6 0", ...stroke } });
+    button.createEl("div", { cls: "post-action-icon" }).createEl("plugin-icon", { attr: { icon: "emoji-sad-line" } });
     if (sent) {
       button.setAttr("disabled", "");
-      return;
+      return action;
     }
     button.onClick(async () => {
       if (this.sent.has(key)) return;
@@ -1403,7 +1318,9 @@ ${item} .small-post:has(${button}) .post-actions-secondary { padding-left: 34px;
         console.error("[show-less-button] showLessLikeThis failed", error);
         new Notice("Couldn't send \u201CShow less like this\u201D. Try again.");
       }
+      this.refreshSlot(SLOT, { keys: [{ uri: postUri, feedUri }] });
     });
+    return action;
   }
 };
 ShowLessButtonPlugin.register();

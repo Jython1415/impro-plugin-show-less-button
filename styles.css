@@ -1,31 +1,3 @@
-/*
- * Every button starts hidden. src/main.js adds one rule per feed that shows
- * the button whose data-feed matches the feed the post is displayed in.
- *
- * The shown button is lifted out of the post text into the action bar, just
- * left of Bookmark. Plugin stylesheets apply to the whole page, so this can lay
- * out against Impro's own markup. Numbers from Impro's feed-post layout
- * (measured 2026-10-31):
- *   - The positioning box is .post-content-with-space. The action bar is the
- *     last thing in it, and its buttons sit 4px above its bottom edge.
- *   - The right-hand group (Bookmark, Share, More) is three 30px buttons with
- *     4px gaps: 98px. The button goes one 4px gap to the left of it, and the
- *     group gets 34px of left padding (added by the per-feed rule) so the
- *     left-hand actions never run under it on a narrow screen.
- */
-.show-less-button-row {
-  height: 0;
-  margin: 0;
-}
-.show-less-button.post-action-button {
-  display: none; /* beats Impro's .post-action-button { display: flex } */
-}
-.small-post .show-less-button.post-action-button {
-  position: absolute;
-  right: 102px;
-  bottom: 4px;
-  z-index: 1;
-}
-.small-post .show-less-button.post-action-button[disabled] {
+.show-less-button.post-action-button[disabled] {
   opacity: 0.5;
 }

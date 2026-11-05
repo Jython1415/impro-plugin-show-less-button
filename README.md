@@ -23,39 +23,21 @@ https://github.com/Jython1415/impro-plugin-show-less-button
 It asks for one permission, **feed feedback** (`feedFeedback`), which is what
 lets it send "show less" on your behalf.
 
-## How it works, and its limits
+## How it works
 
-Impro's plugin API has no per-post slot in feeds, so the plugin combines two
-hooks that do exist:
+The button renders into Impro's `post-action-bar:secondary-start` plugin slot
+(added in [improsocial/impro#79](https://github.com/improsocial/impro/pull/79)).
+The slot tells the plugin which post it is on and which feed the post is shown
+in, so the button:
 
-1. A **feed filter**. Impro runs feed filters on every feed page before it
-   renders, passing the feed URI and its posts. The plugin hides nothing; it
-   records which feed each post came from, and looks up (once per feed) whether
-   the feed generator sets `acceptsInteractions`.
-2. A **rich-text transform** on feed posts (`smallPost`). For a post known to
-   come from such a feed, it adds the button to the post text. Plugin
-   stylesheets apply to the whole page, so `styles.css` then lifts it out of the
-   text and pins it into the action bar.
+- appears on every post in a feed that accepts feedback, including image-only
+  posts with no text;
+- sends the signal to exactly the feed on screen;
+- uses Impro's own action-button markup and sad-face icon.
 
-Because of that:
-
-- Posts with **no text** (image- or link-only) get no button; Impro renders no
-  rich text for them.
-- The placement uses two numbers measured from Impro's layout (the bar's 4px
-  inset and the 98px Bookmark/Share/More group). If Impro changes that layout,
-  the button will sit in the wrong spot until `styles.css` is updated.
-- The plugin renders one hidden button per feed that accepts feedback, and a
-  per-feed CSS rule shows the one matching the feed the post is displayed in
-  (Impro tags each feed item with its feed), so the button on screen always
-  sends to the feed on screen. A post only carries buttons for feeds the plugin
-  knew about when the post was first drawn. The list of feeds is saved with
-  the plugin's synced data and loaded before any feed renders, so this only
-  bites in the first session after install (or after you pin a new feed):
-  reload once and it's complete.
-- It only covers feeds whose generator says it accepts feedback, so feeds that
-  never set `acceptsInteractions` get no button, exactly as Impro's menu.
-
-A host-side slot in the post action bar would remove the first three.
+Like Impro's own menu item, it only appears on feeds whose generator accepts
+interactions (Discover and most custom feeds); never on Following, lists,
+profiles or threads. It needs an Impro version that has the slot.
 
 ## Build
 

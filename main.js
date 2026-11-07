@@ -1261,6 +1261,12 @@ self.onmessage = async (event) => {
 var SLOT = "post-action-bar:secondary-start";
 var ShowLessButtonPlugin = class extends Plugin {
   onload() {
+    this.loadData().then((saved) => {
+      if (saved && typeof saved === "object" && "acceptingFeeds" in saved) {
+        return this.saveData({});
+      }
+    }).catch(() => {
+    });
     this.feedAccepts = /* @__PURE__ */ new Map();
     this.sent = /* @__PURE__ */ new Set();
     this.registerSlot(

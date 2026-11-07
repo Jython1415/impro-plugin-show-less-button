@@ -1,3 +1,29 @@
 .show-less-button.post-action-button[disabled] {
   opacity: 0.5;
 }
+
+/*
+ * On a very narrow post the extra button can push "More" past the bar's
+ * right edge. Only on posts that show the button, and only when the post's
+ * content column is under 280px (a post width of about 360px or less), tighten
+ * the bar: a smaller gap between the left and right groups, no gap inside the
+ * right group, and slimmer right-group buttons. Measured 2026-11-07 on Impro's
+ * feed layout: with this, the plugin adds no overflow beyond Impro's own at any
+ * width down to a 320px post; normal widths are unchanged.
+ */
+.post-content-right:has(.show-less-action) {
+  container: slb-post / inline-size;
+}
+@container slb-post (max-width: 280px) {
+  .post-actions {
+    gap: 6px;
+  }
+  .post-actions-secondary {
+    gap: 0;
+  }
+  .post-actions-secondary .post-action-button {
+    min-width: 26px;
+    padding-left: 3px;
+    padding-right: 3px;
+  }
+}

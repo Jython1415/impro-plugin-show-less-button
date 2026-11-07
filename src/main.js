@@ -15,6 +15,16 @@ const SLOT = "post-action-bar:secondary-start";
 
 class ShowLessButtonPlugin extends Plugin {
   onload() {
+    // v0.3.x kept a list of feeds in the plugin's synced data; nothing reads
+    // it now, so clear it once instead of leaving it in the user's settings.
+    this.loadData()
+      .then((saved) => {
+        if (saved && typeof saved === "object" && "acceptingFeeds" in saved) {
+          return this.saveData({});
+        }
+      })
+      .catch(() => {});
+
     /** feed uri -> Promise<boolean> (does the feed accept interactions?) */
     this.feedAccepts = new Map();
     /** "<feed>|<post>" pairs already sent a requestLess */
